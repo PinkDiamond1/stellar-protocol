@@ -1,0 +1,1909 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Rewards API",
+    "description": "# Introduction\n\n### Welcome to the eGifter Rewards API Documentation Library.\n\nThe eGifter Rewards API is a RESTful API that supports gift card programs of all types. Integrate gift cards into your mobile app or other platform to seamlessly order and deliver gift cards to your users.\nClients using the eGifter Rewards API will also be granted access to the eGifter Rewards Portal, providing essential reporting, management and tracking for all gift card transactions. Additionally, orders can be placed manually within the eGifter Rewards Portal itself.\n\n# Gift Card Delivery Options\n\neGifter supports a few distinct delivery mechanisms. Choose the one that works best for your program. Speak to your account manager for white-label or co-branded options.\n\n### Digital Gift Cards\n\neGifter default configurations include hosted gift card redemption experiences at our [eGifter Rewards Marketplace](https://egifterrewards.com/)\n\neGifter also offers hosted brand-compliant client-branded redemption experiences.\n\n- Gift Cards Delivered by eGifter: eGifter will deliver an email and/or SMS to the end user directly with a link (\"Claim Link\") for them to access their gift card. The user will be prompted to confirm their email address (or mobile number).\n    - `DeliveryType`: `DigitalDelivery`\n- Claim Links: In this option, eGifter's response includes a Claim Link that end-users can access to get the Gift Card code. Claim Links have a challenge question for security. You are responsible for delivering the link to the recipient. Our Gift Card presentation web pages are completely mobile responsive, so you can encapsulate the pages right inside your app, or send the Claim Link to your users via your own email, text message, etc.\n    - `DeliveryType`: `Links`\n- Codes: Subject to each Issuer's approval, Company can order Gift Card codes via eGifter's API. eGifter will provide gift card codes directly in the API response. This delivery mechanism requires eGifter approval and enablement. Contact us to discuss this option.\n    - `DeliveryType`: `Codes`\n\n### Physical Gift Cards\n\n- eGifter supports the ordering of physical gift cards.\n    - `DeliveryType`: `PhysicalShipment`\n    - Please speak with your account manager about approval and enablement.\n\n# API Access\n\nAccess to the Rewards API requires an account to be created within the eGifter B2B portal.\n- [Register](https://www.egifter.com/bulk/register) for an eGifter Rewards account. Once approved, eGifter will create your initial user account.\n- Access Tokens will only be exposed once.\n- eGifter maintains both Stage and Production environments for clients to work with.\n- Development and certification will be done against the Stage environment.\n- The Production environment is additionally protected by IP whitelisting. As part of the onboarding process, you'll be asked for the IPs or IP ranges of your production servers.\n\n# Deposit Account Balance\n\n- Your Deposit Account must have sufficient funds to cover an order. To increase your Deposit Account Balance, submit a funding requests through the eGifter Rewards Portal.\n- Your Balance is comprised of a `Pending` portion and an `Available` portion. When we receive a funding request, the `Pending` portion of the balance will increase.\n- When we receive your funds and apply them to your account, the funds will move from `Pending` to `Available` for use.\n\n# Error Handling\n\n- In the event of a timeout or disconnect of some sort when you're placing an order, you can either simply retry the order, or do a [GET on your previous orders.](#operation/GetOrders)\n- When retrying an order, ensure that your PO number is the same as your initial attempt.\n- If your initial `POST` made it through to us and we have your order in our system, you'll receive a `409 Conflict` and the response body will contain the Id of your initial order for which you missed the response body.\n\n# Caching\n\n- Endpoints for relatively static data such as [Products](#tag/Products) and [Shipping Methods](#tag/ShippingMethods) should be cached for at minimum a week.\n- Most changes to this data will involve alerts from your account manager.\n\n# Claim Link Customization\n\nUnless otherwise specified by your account manager, orders of type `Links` can be customized as follows:\n- Bypass the challenge question / answer page by appending url parameter `claim_token` with the value being the applicable `ClaimLinkChallengeAnswer` for your link.\n- Suppress the top navbar with brand logo and top level navigation links by appending url parameter `hideTopNav=1`\n- Suppress the banner on the top of the redemption experience by appending url parameter `hideHeadline=1`\n- By default, if personalization fields are not specified then the personalization pages will not be part of that particular link's redemption experience. To bypass personalization for a link where present, include url parameter `skipPersonalization=1`.\n\n# Asynchrony\n\n- eGifter is integrated with many different Gift Card sources. The batching capabilities and performance of these upstream providers are a direct pass through to the Rewards-Api caller.\n- As such, once a certain order size is reached, eGifter will respond with your order in a `Pending` status and then asynchronously complete the order in an effort to make sure that we're able to respond in a timely manner.\n- eGifter supports webhooks. To be notified when your order has completed processing, provide a `FulfillmentComplete` webhook setting and eGifter will reach out to proactively notify you about your order.\n- eGifter supports polling. If you do not wish to accept a webhook for your order status, you may poll for your order status. Your polling frequency should be relative to the size of your order.\n\n# Typical Resource Flow\n\n- [Token Exchange](#operation/CreateToken) - Create a Bearer token for authenticating all subsequent calls.\n- [Browse Products](#operation/GetProducts) - Identify brands and denominations to order.\n- [Place Order](#operation/PostOrder) - Create an order for a number of gift cards.\n- [Get Order](#operation/GetOrder) - Fetch an order.",
+    "version": "v1",
+    "x-logo": {
+      "url": "https://d2g7ragyj76kvw.cloudfront.net/brands/egw_v3/egifter-rewards/logo_white.svg",
+      "altText": "eGifter Rewards Logo",
+      "href": "https://egifterrewards.com",
+      "backgroundColor": "#086eaa"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://rewards-api.egifter.com",
+      "description": "Production"
+    },
+    {
+      "url": "https://stage-rewards-api.egifter.com",
+      "description": "Stage"
+    }
+  ],
+  "paths": {
+    "/v1/Tokens": {
+      "post": {
+        "tags": [
+          "Tokens"
+        ],
+        "summary": "Create a bearer token.",
+        "description": "Token creation requires two headers to be present in the request: `Email` and `AccessToken`. Note the expiration field. Bearer tokens are meant to be reused for the duration of their lifecycle. Credentials can be provisioned in your user management portal.",
+        "operationId": "CreateToken",
+        "responses": {
+          "200": {
+            "description": "Token successfully generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": [ ],
+            "Email": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/AccountBalance": {
+      "get": {
+        "tags": [
+          "AccountBalance"
+        ],
+        "summary": "Get account balance",
+        "description": "",
+        "operationId": "GetAccountBalance",
+        "responses": {
+          "200": {
+            "description": "Account balance successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountBalance"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/Products/{id}": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Get a particular product",
+        "description": "",
+        "operationId": "GetProduct",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No available product found"
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/Products": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Get products",
+        "description": "",
+        "operationId": "GetProducts",
+        "parameters": [
+          {
+            "name": "pageIndex",
+            "in": "query",
+            "description": "One based",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "description": "One based",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 25
+            }
+          },
+          {
+            "name": "productName",
+            "in": "query",
+            "description": "Loose matching - will succeed when this value exists in the product name",
+            "schema": {
+              "type": "string",
+              "description": "Loose matching - will succeed when this value exists in the product name"
+            }
+          },
+          {
+            "name": "productDescription",
+            "in": "query",
+            "description": "Loose matching - will succeed when this value exists in either the long product description or the short product description",
+            "schema": {
+              "type": "string",
+              "description": "Loose matching - will succeed when this value exists in either the long product description or the short product description"
+            }
+          },
+          {
+            "name": "productType",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ProductType"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request successfully executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/ShippingMethods": {
+      "get": {
+        "tags": [
+          "ShippingMethods"
+        ],
+        "summary": "Get Shipping Methods",
+        "description": "",
+        "operationId": "GetShippingMethods",
+        "parameters": [
+          {
+            "name": "pageIndex",
+            "in": "query",
+            "description": "One based",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "description": "One based",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 5
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shipping methods successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShippingMethodsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/Carriers": {
+      "get": {
+        "tags": [
+          "Carriers"
+        ],
+        "summary": "Get Carriers",
+        "description": "A carrier is the physical packaging that a card is attached to when shipped. If your account is entitled to anything above and beyond the default carrier, you'll see them listed here.",
+        "operationId": "GetCarriers",
+        "parameters": [
+          {
+            "name": "pageIndex",
+            "in": "query",
+            "description": "One based",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "description": "One based",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 5
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Carriers successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarriersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/AddressVerification": {
+      "post": {
+        "tags": [
+          "AddressVerification"
+        ],
+        "summary": "Submit address verification request",
+        "description": "US only at this time. Returns a list of one or many ranked suggestions with the first being preferred. This endpoint is a premium service that has an associated cost per invocation.",
+        "operationId": "VerifyAddress",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Address verification request successfully processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressVerificationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Address verification not enabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Insufficient funds to perform address verification.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsufficientFundsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/BalanceCheck": {
+      "post": {
+        "tags": [
+          "BalanceCheck"
+        ],
+        "summary": "Check the balance of a card",
+        "description": "Only applicable to orders of digital products. This endpoint is a premium service that has an associated cost per invocation. One code per invocation. Enough request fields must be provided to narrow an order down to a single code.",
+        "operationId": "CheckCardBalance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BalanceCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Balance check request successfully processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceCheckResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Balance check not enabled or not supported for the brand of the code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Insufficient funds to perform balance check.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsufficientFundsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/Orders": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Create an order",
+        "description": "",
+        "operationId": "CreateOrder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Order successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error in the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate order. PO number must be unique.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictingOrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable order. Insufficient funds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsufficientFundsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Get order history",
+        "description": "",
+        "operationId": "GetOrders",
+        "parameters": [
+          {
+            "name": "pageIndex",
+            "in": "query",
+            "description": "One based",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "description": "One based",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 5
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "poNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipientName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipientEmail",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipientSms",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order history successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrdersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error in the request"
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/Orders/{id}": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Get a particular order",
+        "description": "",
+        "operationId": "GetOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Requested order not found"
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/v1/Status": {
+      "get": {
+        "tags": [
+          "Status"
+        ],
+        "summary": "Validate system connectivity",
+        "operationId": "CheckStatus",
+        "responses": {
+          "200": {
+            "description": "Core system connectivity confirmed"
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header"
+          },
+          "403": {
+            "description": "Access disabled for the account backing this credential set."
+          },
+          "500": {
+            "description": "Error processing request"
+          },
+          "504": {
+            "description": "Request timed out"
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountBalance": {
+        "type": "object",
+        "properties": {
+          "pending": {
+            "type": "number",
+            "description": "Account funds that are awaiting approval",
+            "format": "double",
+            "example": 750
+          },
+          "available": {
+            "type": "number",
+            "description": "Account funds that are available for use",
+            "format": "double",
+            "example": 15250
+          }
+        },
+        "additionalProperties": false
+      },
+      "AddressRequest": {
+        "required": [
+          "addressLine1",
+          "city",
+          "country",
+          "name",
+          "state",
+          "zip"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 150,
+            "type": "string",
+            "description": "Full Name",
+            "example": "eGifter Accounting"
+          },
+          "addressLine1": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Street and number, P.O. box, c/o",
+            "example": "315 Main Street"
+          },
+          "addressLine2": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Apartment, suite, unit, building, floor, etc.",
+            "nullable": true,
+            "example": "Second Floor"
+          },
+          "addressLine3": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "",
+            "nullable": true,
+            "example": ""
+          },
+          "city": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "",
+            "example": "Huntington"
+          },
+          "state": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Two character State / Province / Region code as defined in ISO 3166-2",
+            "example": "NY"
+          },
+          "zip": {
+            "maxLength": 50,
+            "type": "string",
+            "description": "Zip / Postal Code",
+            "example": "11743"
+          },
+          "country": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Two character Country / Region code as defined in ISO 3166-2",
+            "example": "US"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AddressVerificationResponse": {
+        "required": [
+          "suggestions"
+        ],
+        "type": "object",
+        "properties": {
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AddressRequest"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "BalanceCheckRequest": {
+        "required": [
+          "orderId"
+        ],
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string"
+          },
+          "lineItemId": {
+            "type": "string",
+            "description": "Should be provided if order contains multiple line items",
+            "nullable": true
+          },
+          "claimDataId": {
+            "type": "string",
+            "description": "Must be provided if order line item contain multiple quantities. Can be provided in place of LineItemId as it is more specific and unique across all line items.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BalanceCheckResponse": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BarcodeType": {
+        "enum": [
+          "None",
+          "Code128",
+          "QR",
+          "PDF417",
+          "Aztec",
+          "ITF",
+          "_2D",
+          "Code39",
+          "Code93"
+        ],
+        "type": "string"
+      },
+      "Carrier": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CarriersResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Carrier"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "description": "The one-based page index",
+            "format": "int32",
+            "example": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Quantity of records per page of data",
+            "format": "int32",
+            "example": 10
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "The quantity of records across the pages in the resultset",
+            "format": "int32",
+            "example": 53
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClaimCode": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Label for the code provided.",
+            "nullable": true,
+            "example": "Gift Card Number"
+          },
+          "value": {
+            "type": "string",
+            "description": "Code value",
+            "nullable": true,
+            "example": "1234567890123456"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClaimData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique code identifier",
+            "nullable": true
+          },
+          "claimLink": {
+            "type": "string",
+            "description": "Populated only for orders of type Links",
+            "nullable": true,
+            "example": "https://egifterrewards.com"
+          },
+          "claimLinkChallengeAnswer": {
+            "type": "string",
+            "description": "The challenge answer that the user will be prompted for upon visiting the link.\r\nPopulated only for orders of type Links",
+            "nullable": true,
+            "example": "ABC123"
+          },
+          "barcodePath": {
+            "type": "string",
+            "description": "A fully qualified url to eGifter's Barcode Service that will generate on demand.\r\nPopulated only for orders of type Codes.",
+            "nullable": true,
+            "example": "https://www.egifter.com/barcode.png"
+          },
+          "barcodeChars": {
+            "type": "string",
+            "description": "The characters used to generate the barcode.\r\nPopulated only for orders of type Codes.",
+            "nullable": true
+          },
+          "barcodeType": {
+            "$ref": "#/components/schemas/BarcodeType"
+          },
+          "codes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimCode"
+            },
+            "description": "Array of gift card codes and their associated labels.\r\nQuantity of codes in this field is dynamic to the product and its associated gift card program.\r\nMost products do not utilize more than two codes. As of this writing, no product has more than 3.\r\n\r\nFirst code can be considered the gift card code.\r\nSecond code (if present) is typically the PIN.\r\n\r\nPopulated only for orders of type Codes.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConflictingOrderResponse": {
+        "type": "object",
+        "properties": {
+          "poNumber": {
+            "type": "string",
+            "description": "The PO Number common across the existing order and the requested order.",
+            "nullable": true,
+            "example": "PO-123456789"
+          },
+          "previousOrderIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The order id of the original order(s). Legacy systems did not restrict uniqueness so more than one are possible.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeliveryType": {
+        "enum": [
+          "DigitalDelivery",
+          "PhysicalShipment",
+          "Links",
+          "Codes"
+        ],
+        "type": "string"
+      },
+      "DigitalDeliveryAddress": {
+        "type": "object",
+        "properties": {
+          "sms": {
+            "maxLength": 20,
+            "type": "string",
+            "description": "Required if Email not provided",
+            "nullable": true,
+            "example": "1234567890"
+          },
+          "email": {
+            "maxLength": 150,
+            "type": "string",
+            "description": "Required if Sms not provided",
+            "nullable": true,
+            "example": "example@egifter.com"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InsufficientFundsResponse": {
+        "type": "object",
+        "properties": {
+          "availableBalance": {
+            "type": "number",
+            "description": "Funds available for use",
+            "format": "double",
+            "example": 1000
+          },
+          "orderCost": {
+            "type": "number",
+            "description": "Cost of the order including any discount and fees",
+            "format": "double",
+            "example": 1200
+          }
+        },
+        "additionalProperties": false
+      },
+      "LineItemPersonalization": {
+        "required": [
+          "fromName",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "to": {
+            "maxLength": 150,
+            "type": "string",
+            "description": "First and last name of the recipient."
+          },
+          "fromName": {
+            "maxLength": 150,
+            "type": "string",
+            "description": "Name to display as the sender of the gift. Defaults to name of api caller"
+          },
+          "fromEmail": {
+            "maxLength": 150,
+            "type": "string",
+            "description": "Email to display as the sender of the gift. Defaults to email of api caller",
+            "nullable": true
+          },
+          "message": {
+            "maxLength": 400,
+            "type": "string",
+            "description": "Message to display to the recipient of the gift.",
+            "nullable": true
+          },
+          "deliveryDate": {
+            "type": "string",
+            "description": "Date and time to deliver gift (UTC). Applicable only to orders of type DigitalDelivery. Defaults to moment order is placed when not specified",
+            "format": "date-time",
+            "nullable": true,
+            "example": "2019-01-27T01:14:00"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LineItemStatus": {
+        "enum": [
+          "Pending",
+          "Completed",
+          "Cancelled",
+          "Sent",
+          "Claimed",
+          "SentToFulfillment",
+          "Shipped"
+        ],
+        "type": "string"
+      },
+      "OrderPersonalization": {
+        "type": "object",
+        "properties": {
+          "photoUrl": {
+            "maxLength": 150,
+            "type": "string",
+            "nullable": true
+          },
+          "greetingUrl": {
+            "maxLength": 150,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrderRequest": {
+        "required": [
+          "lineItems",
+          "poNumber",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/DeliveryType"
+          },
+          "lineItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderRequestLineItem"
+            }
+          },
+          "personalization": {
+            "$ref": "#/components/schemas/OrderPersonalization"
+          },
+          "poNumber": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Identifier for the order set by the caller. Must be unique.",
+            "example": "PO-123456789"
+          },
+          "note": {
+            "maxLength": 250,
+            "type": "string",
+            "description": "Free-form text pass-through",
+            "nullable": true,
+            "example": "Placed for XYZ recipients"
+          },
+          "webhookSettings": {
+            "$ref": "#/components/schemas/OrderRequestWebhookSettings"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrderRequestLineItem": {
+        "required": [
+          "productId",
+          "quantity",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "externalId": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Optional id for reconciling particular eGifter line items to the caller's.",
+            "nullable": true
+          },
+          "productId": {
+            "type": "string",
+            "description": "Must be one of the products available to the caller.",
+            "example": "MGWGCPB"
+          },
+          "value": {
+            "type": "number",
+            "description": "Must be a denomination in the range of available values for the given ProductId",
+            "format": "double",
+            "example": 75
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Can only be specified for orders having Type Codes or PhysicalShipment",
+            "format": "int32",
+            "example": 1
+          },
+          "culture": {
+            "type": "string",
+            "description": "For use in specifying localization aspects of eGifter delivery experiences.\r\nShould only be provided after working with eGifter to configure this customization.\r\nMust only be provided for orders of type `Links` or `DigitalDelivery`",
+            "nullable": true,
+            "example": "en-US"
+          },
+          "theme": {
+            "type": "string",
+            "description": "Optional field. Should not be specified unless your account has been explicitly preconfigured to support additional themes. Only applicable to orders of types Links, DigitalDelivery.",
+            "nullable": true
+          },
+          "physicalDeliveryAddress": {
+            "$ref": "#/components/schemas/PhysicalDeliveryAddress"
+          },
+          "digitalDeliveryAddress": {
+            "$ref": "#/components/schemas/DigitalDeliveryAddress"
+          },
+          "personalization": {
+            "$ref": "#/components/schemas/LineItemPersonalization"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrderRequestWebhookSettings": {
+        "type": "object",
+        "properties": {
+          "fulfillmentComplete": {
+            "maxLength": 500,
+            "type": "string",
+            "description": "Fully qualified url to a customer-maintained endpoint. \r\nApplicable for orders of types Codes or PhysicalDelivery. \r\nWe will post json to this endpoint upon an order being completely fulfilled. \r\nThe POST will auto-retry (exponentially backed-off) until deemed successful, be aware that you may receive a message multiple times for a given order. \r\nThe timestamp (UTC) included in the request body will be the time of the original attempt.\r\nSample request body: <code>{ \"Action\": \"FulfillmentComplete\", \"OrderId\": \"BLK-123456789\", \"PONumber\": \"SomeCustomerId-123456789\", \"Timestamp\": \"06/19/2019 11:58:00 AM\" }</code>",
+            "nullable": true,
+            "example": "https://webhooks.acme.com/rewards-api?some=param"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrderResponse": {
+        "required": [
+          "id",
+          "lineItems",
+          "poNumber",
+          "status",
+          "timestamp",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier of the order."
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "The date and time the order was created. ISO 8601 format.",
+            "format": "date-time",
+            "example": "2020-03-14T01:46:49"
+          },
+          "date": {
+            "type": "string",
+            "description": "The date the order was created. Will be removed in a future release.",
+            "nullable": true,
+            "readOnly": true,
+            "deprecated": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "lineItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderResponseLineItem"
+            }
+          },
+          "type": {
+            "$ref": "#/components/schemas/DeliveryType"
+          },
+          "personalization": {
+            "$ref": "#/components/schemas/OrderPersonalization"
+          },
+          "poNumber": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Identifier for the order set by the caller. Must be unique.",
+            "example": "PO-123456789"
+          },
+          "note": {
+            "maxLength": 250,
+            "type": "string",
+            "description": "Free-form text pass-through",
+            "nullable": true,
+            "example": "Placed for XYZ recipients"
+          },
+          "webhookSettings": {
+            "$ref": "#/components/schemas/OrderRequestWebhookSettings"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrderResponseLineItem": {
+        "required": [
+          "id",
+          "productId",
+          "quantity",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the line item"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LineItemStatus"
+          },
+          "claimData": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimData"
+            },
+            "description": "Array of claim data This field is dynamically populated based on the requested order Type.",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "description": "The cost to the client of the line item",
+            "format": "double",
+            "nullable": true,
+            "example": 71.5
+          },
+          "externalId": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Optional id for reconciling particular eGifter line items to the caller's.",
+            "nullable": true
+          },
+          "productId": {
+            "type": "string",
+            "description": "Must be one of the products available to the caller.",
+            "example": "MGWGCPB"
+          },
+          "value": {
+            "type": "number",
+            "description": "Must be a denomination in the range of available values for the given ProductId",
+            "format": "double",
+            "example": 75
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Can only be specified for orders having Type Codes or PhysicalShipment",
+            "format": "int32",
+            "example": 1
+          },
+          "culture": {
+            "type": "string",
+            "description": "For use in specifying localization aspects of eGifter delivery experiences.\r\nShould only be provided after working with eGifter to configure this customization.\r\nMust only be provided for orders of type `Links` or `DigitalDelivery`",
+            "nullable": true,
+            "example": "en-US"
+          },
+          "theme": {
+            "type": "string",
+            "description": "Optional field. Should not be specified unless your account has been explicitly preconfigured to support additional themes. Only applicable to orders of types Links, DigitalDelivery.",
+            "nullable": true
+          },
+          "physicalDeliveryAddress": {
+            "$ref": "#/components/schemas/PhysicalDeliveryAddress"
+          },
+          "digitalDeliveryAddress": {
+            "$ref": "#/components/schemas/DigitalDeliveryAddress"
+          },
+          "personalization": {
+            "$ref": "#/components/schemas/LineItemPersonalization"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrdersResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderResponse"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "description": "The one-based page index",
+            "format": "int32",
+            "example": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Quantity of records per page of data",
+            "format": "int32",
+            "example": 10
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "The quantity of records across the pages in the resultset",
+            "format": "int32",
+            "example": 53
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrderStatus": {
+        "enum": [
+          "Pending",
+          "Processing",
+          "AwaitingApproval",
+          "Completed",
+          "Cancelled"
+        ],
+        "type": "string"
+      },
+      "PhysicalDeliveryAddress": {
+        "required": [
+          "addressLine1",
+          "city",
+          "country",
+          "name",
+          "shippingMethodId",
+          "state",
+          "zip"
+        ],
+        "type": "object",
+        "properties": {
+          "shippingMethodId": {
+            "type": "string"
+          },
+          "carrierId": {
+            "type": "string",
+            "description": "Optional field. Should not be specified unless your account has been explicitly preconfigured to support non-default physical carriers.",
+            "nullable": true
+          },
+          "name": {
+            "maxLength": 150,
+            "type": "string",
+            "description": "Full Name",
+            "example": "eGifter Accounting"
+          },
+          "addressLine1": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Street and number, P.O. box, c/o",
+            "example": "315 Main Street"
+          },
+          "addressLine2": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "Apartment, suite, unit, building, floor, etc.",
+            "nullable": true,
+            "example": "Second Floor"
+          },
+          "addressLine3": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "",
+            "nullable": true,
+            "example": ""
+          },
+          "city": {
+            "maxLength": 100,
+            "type": "string",
+            "description": "",
+            "example": "Huntington"
+          },
+          "state": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Two character State / Province / Region code as defined in ISO 3166-2",
+            "example": "NY"
+          },
+          "zip": {
+            "maxLength": 50,
+            "type": "string",
+            "description": "Zip / Postal Code",
+            "example": "11743"
+          },
+          "country": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Two character Country / Region code as defined in ISO 3166-2",
+            "example": "US"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Product": {
+        "required": [
+          "availableDeliveryTypes",
+          "denominations",
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Product unique identifier"
+          },
+          "denominations": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "description": "In the case of {ProductDenominationType} being `Fixed`, this array contains the explicit available denominations.\r\nIn the case of {ProductDenominationType} being `Variable`, this array will contain the (inclusive) lower and upper bounds. Any cent value between is available.\r\nIn the case of {ProductDenominationType} being `VariableNoCents`, this array will contain the (inclusive) lower and upper bounds. Any whole-dollar value between is available."
+          },
+          "shortDescription": {
+            "maxLength": 600,
+            "type": "string",
+            "description": "May contain HTML",
+            "nullable": true
+          },
+          "longDescription": {
+            "maxLength": 4000,
+            "type": "string",
+            "description": "May contain HTML",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "availableDeliveryTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryType"
+            },
+            "description": "Specifies which delivery methods are available and enabled for your account for a given product."
+          },
+          "terms": {
+            "type": "string",
+            "description": "May contain HTML",
+            "nullable": true
+          },
+          "disclaimer": {
+            "type": "string",
+            "description": "May contain HTML",
+            "nullable": true
+          },
+          "redemptionNote": {
+            "type": "string",
+            "description": "Multi-use blurb of text to show in the context of this brand regarding something special about redemption.\r\nMay contain HTML",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/ProductType"
+          },
+          "denominationType": {
+            "$ref": "#/components/schemas/ProductDenominationType"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ProductMeta"
+          },
+          "media": {
+            "$ref": "#/components/schemas/ProductMedia"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/ProductCost"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProductColors": {
+        "type": "object",
+        "properties": {
+          "primary": {
+            "type": "string",
+            "nullable": true
+          },
+          "secondary": {
+            "type": "string",
+            "nullable": true
+          },
+          "primaryText": {
+            "type": "string",
+            "nullable": true
+          },
+          "secondaryText": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProductCost": {
+        "type": "object",
+        "properties": {
+          "fee": {
+            "type": "number",
+            "description": "Fee (if applicable) per product quantity ordered",
+            "format": "double"
+          },
+          "discountPercentage": {
+            "type": "number",
+            "description": "Discount expressed as a percentage. A value of 11 signifies that a $100.00 gift card (having no applicable fees) will cost $89.00.",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProductDenominationType": {
+        "enum": [
+          "Fixed",
+          "Variable",
+          "VariableNoCents"
+        ],
+        "type": "string"
+      },
+      "ProductFaceplate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "path": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProductMedia": {
+        "type": "object",
+        "properties": {
+          "faceplates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductFaceplate"
+            },
+            "nullable": true
+          },
+          "logo": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProductMeta": {
+        "type": "object",
+        "properties": {
+          "supportsApiBalanceChecks": {
+            "type": "boolean"
+          },
+          "website": {
+            "type": "string",
+            "nullable": true
+          },
+          "colors": {
+            "$ref": "#/components/schemas/ProductColors"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProductsResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "description": "The one-based page index",
+            "format": "int32",
+            "example": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Quantity of records per page of data",
+            "format": "int32",
+            "example": 10
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "The quantity of records across the pages in the resultset",
+            "format": "int32",
+            "example": 53
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProductType": {
+        "enum": [
+          "Digital",
+          "Physical"
+        ],
+        "type": "string"
+      },
+      "ShippingMethod": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "carrier": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ShippingMethodsResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShippingMethod"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "description": "The one-based page index",
+            "format": "int32",
+            "example": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "Quantity of records per page of data",
+            "format": "int32",
+            "example": 10
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "The quantity of records across the pages in the resultset",
+            "format": "int32",
+            "example": 53
+          }
+        },
+        "additionalProperties": false
+      },
+      "Token": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "description": "Time until expiration in minutes",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidationError": {
+        "required": [
+          "errors",
+          "property"
+        ],
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string",
+            "description": "Path of the request property that triggered a validation error"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Issues with the specified request property"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidationErrorResponse": {
+        "required": [
+          "errors"
+        ],
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "description": "Array of validation errors"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "Email": {
+        "type": "apiKey",
+        "description": "The email address for a given account for which API access has been enabled.",
+        "name": "Email",
+        "in": "header"
+      },
+      "AccessToken": {
+        "type": "apiKey",
+        "description": "The access token that was provisioned for the user specified in the Email header",
+        "name": "AccessToken",
+        "in": "header"
+      },
+      "Bearer": {
+        "type": "apiKey",
+        "description": "Authorization header using the Bearer scheme. Example: `Authorization: Bearer {token}`. See Tokens section for Bearer token generation.",
+        "name": "Authorization",
+        "in": "header"
+      }
+    }
+  }
+}
